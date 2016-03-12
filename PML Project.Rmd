@@ -1,0 +1,158 @@
+---
+title: "Practical Machine Learning - Prediction Assignment"
+author: "Yogamaya"
+date: "March 10, 2016"
+output: html_document
+---
+
+##Introduction
+One thing that people regularly do is to quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants and predict the manner in which they did the exercise.
+
+The folowing process will be followed to build the prediction model:  
+
+*       Data anlysis and data manipulation to get tidy data  
+*       Data Slicing to get the training set and testing set  
+*       Build the models - Random Forests and General Boosted Regression Models (GBM)  
+*       Test the accuracy of the models  
+*       Calculate the expected out of sample error  
+*       Model Selection  
+*       Cross Validation  
+
+
+## Tidy Data
+### Data Analysis & Data Manipulation
+Load the Libraries
+
+```{r}
+library(caret)
+
+
+```
+
+#### Load the data
+There are two data sets that will be used for the project - Training Data and Testing Data. All NA and "#DIV/0!" values are removed. 
+
+```{r}
+#
+pmlTrain<-read.csv("pml-training.csv", header=T, na.strings=c("NA", "#DIV/0!"))
+pmlTest<-read.csv("pml-testing.csv", header=T, na.string=c("NA", "#DIV/0!"))
+noNApmlTrain<-pmlTrain[, apply(pmlTrain, 2, function(x) !any(is.na(x)))] 
+dim(noNApmlTrain)
+
+```
+
+#### Remove the variables not needed for the analysis
+
+```{r}
+## variables with user information, time and undefined
+cleanpmlTrain<-noNApmlTrain[,-c(1:8)]
+dim(cleanpmlTrain)
+
+## 20 test cases provided clean info - Validation data set
+cleanpmltest<-pmlTest[,names(cleanpmlTrain[,-52])]
+dim(cleanpmltest)
+```
+
+## Data Slicing 
+
+Training data partitioned in the ratio 60% training set and 40% test set. The variable classe is used to split the data. The original testing data of 20 observation will be used for cross validation.
+
+```{r}
+#partition data
+inTrain <-createDataPartition(y=cleanpmlTrain$classe, p=0.60,list=F)
+newtraining<-cleanpmlTrain[inTrain,] 
+newtesting<-cleanpmlTrain[-inTrain,] 
+#Training and test set dimensions
+dim(newtraining)
+dim(newtesting)
+
+```
+## Build the Models
+
+### Random Forests Model
+
+```{r}
+set.seed(12345)
+
+# Random Forest Model
+rfmodel<-train(classe~ .,data=newtraining, method="rf", trControl=trainControl(method="cv",number=2), verbose=F)
+```
+
+### General Boosted Regression Models (GBM)
+```{r}
+#gbm model
+gbmmodel<-train(classe~.,data=newtraining, method="gbm", trControl=trainControl(method="cv",number=2), verbose=F)
+```
+
+## Test the accuracy of the models
+### Random Forests Model
+
+```{r}
+# predict new values on the test set created by splitting the training data
+predrf<-predict(rfmodel, newdata=newtesting)
+confusionMatrix(predrf, newtesting$classe)
+```
+
+
+```{r}
+# plot the random forests model accuracy
+plot(rfmodel, log = "y", lwd = 2, main = "Random Forests Model - Accuracy", xlab = "Predictors", 
+    ylab = "Accuracy")
+```
+
+
+### General Boosted Regression Models (GBM)
+
+```{r}
+# predict new values on the test set created by splitting the training data
+predgbm<-predict(gbmmodel, newdata=newtesting)
+confusionMatrix(predgbm, newtesting$classe)
+```
+
+
+
+```{r}
+
+# plot the gbm model
+plot(gbmmodel, log = "y", lwd = 2, main = "GBM Model - Accuracy", xlab = "Predictors", 
+    ylab = "Accuracy")
+```
+
+## Out-of-Sample Error Rate
+### Random Forests Model
+
+```{r}
+predictionsrf <- predict(rfmodel, newtesting)
+outOfSampleErrorrf <- 1 - sum(predictionsrf == newtesting$classe)/length(predictionsrf)
+round(outOfSampleErrorrf * 100,2)
+```
+
+
+
+### GBM Model
+
+```{r}
+predictionsgbm <- predict(gbmmodel, newtesting)
+outOfSampleErrorgbm <- 1 - sum(predictionsgbm == newtesting$classe)/length(predictionsgbm)
+round(outOfSampleErrorgbm * 100,2)
+
+```
+
+
+## Prediction Model Selection - Random Forests Model Vs. GBM Model
+The accuracy of Random Forrest is higher than that of the GBM Model. The out of sample error rate for Random Forests Model is significantly smaller than rate the GBM Model. The comparision of the performance both the models indicate that the Random Forests Model is the better than the GBM model.
+
+
+## Cross Validation
+validate the model on the original test data of 20 variables
+```{r}
+pred20<-predict(rfmodel, newdata=pmlTest)
+pred20
+```
+
+## References
+ http://groupware.les.inf.puc-rio.br/har
+ https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+ https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+ 
+
